@@ -9,10 +9,16 @@ class XQuery(BaseModel):
     oqo: OQO = Field(..., description="The OpenAlex Query Object (OQO) representation of the query")
     url: str | None = Field(..., description="The URL of the OpenAlex API endpoint that was used to perform the query")
 
+class QueryDiagnostic(BaseModel):
+    type: str
+    message: str
+    location: object | None = None
+    position: int | None = None
+    context: str | None = None
 class Validation(BaseModel):
     valid: bool = Field(..., description="Indicates whether the query is valid or not")
-    errors: list[str] = Field(..., description="A list of error messages if the query is invalid")
-    warnings: list[str] = Field(..., description="A list of warning messages if the query is valid but has potential issues")
+    errors: list[QueryDiagnostic | str] = Field(..., description="A list of error messages if the query is invalid")
+    warnings: list[QueryDiagnostic | str] = Field(..., description="A list of warning messages if the query is valid but has potential issues")
 
 class Estimate(BaseModel):
     seconds: float = Field(..., description="Estimated time in seconds for the query to execute")
@@ -45,4 +51,8 @@ class QueryResponse(XQuery):
         return values
 
 class QueryRequest(RetrievalParameters):
-    oqo: OQO = Field(..., description="The OpenAlex Query Object (OQO) representation of the query")
+    oqo: OQO | None = Field(None, description="The OpenAlex Query Object (OQO) representation of the query")
+    oql: str | None = Field(None, description="The OpenAlex Query Language (OQL) query string used to search for works")
+
+class QueryErrorResponse(BaseModel):
+    validation: Validation

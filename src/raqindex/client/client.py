@@ -3,13 +3,14 @@ from curses import meta
 import json
 import random
 from email.utils import parsedate_to_datetime
+import textwrap
 
 from raqindex.models.openalex import Error
 from pydantic import ValidationError
 from .environment import Environment
 from .generated_endpoints import GeneratedEndpoints
 from raqindex.models.endpoints import Endpoint, ReqRes, ResponseCollection, Method
-from raqindex.models.query import QueryResponse, QueryRequest
+from raqindex.models.query import QueryErrorResponse, QueryResponse, QueryRequest
 import httpx2
 from functools import wraps
 from datetime import datetime, timedelta, timezone
@@ -26,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 CACHE_EXCLUDE_PATTERNS = (
     "rate-limit",
-    "query",
+    "query", #not currently using this endpoint for oqo or oql queries, prefering / instead
 )
 
 def cache_url_pattern(base_url:str)->str:
@@ -113,7 +114,7 @@ class OpenAlexClient(GeneratedEndpoints):
                 ),
                 responses=ResponseCollection.model_validate({
                     "200": ReqRes(ref="QueryResponse", model=QueryResponse),
-                    "400": ReqRes(ref="Error", model=Error),
+                    "400": ReqRes(ref="QueryErrorResponse", model=QueryErrorResponse),
                     "403": ReqRes(ref="Error", model=Error),
                     "404": ReqRes(ref="Error", model=Error),
                     "429": ReqRes(ref="Error", model=Error),
@@ -364,22 +365,33 @@ class OpenAlexClient(GeneratedEndpoints):
             return response
         return call.__get__(self, type(self))
 
-    async def query(self, query: OQO):
-        return await self.endpoint_factory("/query")(oqo=query)    #query endpoint is not in the schema, defining manually
+    async def query(self, query: OQO | str):
+        if isinstance(query, str):
+            #assume is oql request
+            response = await self.endpoint_factory("/query")(oql=query)
+        else:
+            response = await self.endpoint_factory("/query")(oqo=query)    #query endpoint is not in the schema, defining manually
+        return response
 
     async def oqo(self, query: OQO):
         model_name = query.get_rows.value
         return await self.endpoint_factory("/", model_name)(oqo=query)    #root endpoint is not in the schema, defining manually
-    # @cost
-    # @retry
-    # async def query(self, query: OQO):
-    #     """Send a query to the OpenAlex API."""
-    #     validated = query.model_dump(mode="json", by_alias=True, exclude_none=True)
-    #     response = await self.client.post(
-    #         url="/query",
-    #         json={"oqo": json.dumps(validated)},
-    #         follow_redirects=True,
-    #     )
-    #     response.extensions["openalex_request"] = query
-    #     return response
+
+    def reconstruct_and_wrap_abstract(inverted_index, max_width=80):
+        if not inverted_index:
+            return ""
         
+        # 1. Find the total length of the abstract
+        total_words = max(pos for positions in inverted_index.values() for pos in positions) + 1
+        word_list = [""] * total_words
+        
+        # 2. Place each word in its correct position
+        for word, positions in inverted_index.items():
+            for pos in positions:
+                word_list[pos] = word
+                
+        # 3. Join words into a single string
+        full_text = " ".join(word_list)
+        
+        # 4. Wrap the text to the specified width
+        return textwrap.fill(full_text, width=max_width)

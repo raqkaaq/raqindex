@@ -1,0 +1,78 @@
+{
+  "meta": {
+    "count": 94788,
+    "page": 1,
+    "per_page": 200,
+    "groups_count": 3,
+    "more_groups": false,
+    "next_cursor": null,
+    "measures": [
+      {
+        "key": "count",
+        "measure": "count",
+        "column_id": null,
+        "oql": "count"
+      },
+      {
+        "key": "mean_fwci",
+        "measure": "mean",
+        "column_id": "fwci",
+        "oql": "mean FWCI"
+      },
+      {
+        "key": "percent_open_access_is_oa",
+        "measure": "percent",
+        "column_id": "open_access.is_oa",
+        "oql": "percent open access"
+      }
+    ],
+    "elapsed_ms": 44,
+    "cost": {
+      "credits": 1,
+      "usd": 0.0001,
+      "steps": [
+        {
+          "what": "the starting set",
+          "credits": 1
+        }
+      ]
+    },
+    "x_query": {
+      "oql": "get works where topic is (T10878);\nthen group those works by institution in (I63966007, I97018004, I136199984);\nthen summarize using count, mean FWCI, percent open access",
+      "url": null
+    }
+  },
+  "summary": {
+    "all": {
+      "key": "all",
+      "key_display_name": "all works",
+      "count": 94788,
+      "mean_fwci": 1.849,
+      "percent_open_access_is_oa": 56.3753
+    }
+  },
+  "group_by": [
+    {
+      "key": "https://openalex.org/I63966007",
+      "key_display_name": "Massachusetts Institute of Technology",
+      "count": 1140,
+      "mean_fwci": 10.5247,
+      "percent_open_access_is_oa": 79.2982
+    },
+    {
+      "key": "https://openalex.org/I97018004",
+      "key_display_name": "Stanford University",
+      "count": 1253,
+      "mean_fwci": 4.0065,
+      "percent_open_access_is_oa": 75.419
+    },
+    {
+      "key": "https://openalex.org/I136199984",
+      "key_display_name": "Harvard University",
+      "count": 2289,
+      "mean_fwci": 8.5282,
+      "percent_open_access_is_oa": 78.5496
+    }
+  ],
+  "results": []
+}

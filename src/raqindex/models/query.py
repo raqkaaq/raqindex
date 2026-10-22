@@ -6,8 +6,8 @@ from .openalex import RetrievalParameters
 class XQuery(BaseModel):
     oql: str = Field(..., description="The OpenAlex Query Language (OQL) query string used to search for works")
     x_new_oql: str | None = Field(None, description="The new OQL query string if the original query was modified by the API")
-    oqo: OQO = Field(..., description="The OpenAlex Query Object (OQO) representation of the query")
-    url: str | None = Field(..., description="The URL of the OpenAlex API endpoint that was used to perform the query")
+    oqo: OQO | None = Field(None, description="The OpenAlex Query Object (OQO) representation of the query")
+    url: str | None = Field(None, description="The URL of the OpenAlex API endpoint that was used to perform the query")
 
 class QueryDiagnostic(BaseModel):
     type: str

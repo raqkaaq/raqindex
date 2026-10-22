@@ -1,0 +1,1 @@
+Fixtures copied from CRISPR and NESTED in https://github.com/ourresearch/openalex-mcp-server/blob/main/test/calculate.test.ts on 2026-10-21. Upstream labels these as trimmed production responses from 2026-10-03. These examples establish compatibility, not a complete API contract.

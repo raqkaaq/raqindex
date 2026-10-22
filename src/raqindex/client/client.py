@@ -2,6 +2,7 @@ import asyncio
 from curses import meta
 import json
 import random
+from copy import deepcopy
 from email.utils import parsedate_to_datetime
 import textwrap
 
@@ -11,6 +12,7 @@ from .environment import Environment
 from .generated_endpoints import GeneratedEndpoints
 from raqindex.models.endpoints import Endpoint, ReqRes, ResponseCollection, Method
 from raqindex.models.query import QueryErrorResponse, QueryResponse, QueryRequest
+from raqindex.models.calculation import CalculationResponse
 import httpx2
 from functools import wraps
 from datetime import datetime, timedelta, timezone
@@ -312,26 +314,66 @@ class OpenAlexClient(GeneratedEndpoints):
 
                 meta = getattr(parsed, "meta", None)
                 x_query = getattr(meta, "x_query", None)
-                if x_query is not None:
+                if isinstance(x_query, dict):
                     meta.model_extra["x_query"] = XQuery.model_validate(x_query)
                 return parsed
 
             return wrapper
         return decorator
 
-    def endpoint_factory(self, path, model_name=None):
+    @staticmethod
+    def pagination(func):
+        """Retain an explicit cursor continuation without fetching ahead."""
+        @wraps(func)
+        async def wrapper(self, *args, **kwargs):
+            parameters = deepcopy(kwargs) if kwargs.get("cursor") else None
+            result = await func(self, *args, **kwargs)
+            cursor = getattr(getattr(result, "meta", None), "next_cursor", None)
+            if (
+                parameters is not None
+                and cursor
+                and isinstance(getattr(result, "results", None), list)
+                and not getattr(result, "group_by", None)
+                and not isinstance(result, CalculationResponse)
+            ):
+                parameters.pop("page", None)
+                parameters["cursor"] = cursor
+
+                async def continuation():
+                    return await wrapper(self, *args, **deepcopy(parameters))
+
+                # Private runtime state is excluded from model fields/extras,
+                # keeping response serialization and generated classes intact.
+                object.__setattr__(result, "_raqindex_next_page", continuation)
+            return result
+        return wrapper
+
+    async def next_page(self, page):
+        """Fetch one continuation page, or return None when none is available."""
+        continuation = getattr(page, "_raqindex_next_page", None)
+        return await continuation() if continuation is not None else None
+
+    def endpoint_factory(self, path, model_name=None, response_model=None):
         """A factory method to create endpoint methods for all endpoints defined in the OpenAlex API schema."""
         endpoint = self.endpoints.get(path)
         if not endpoint:
             raise ValueError(f"Endpoint '{path}' not found in the loaded endpoints.")
-        @self.parse_as(self.endpoints.get(f"/{model_name}").method.responses if model_name else endpoint.method.responses)
+        responses = self.endpoints.get(f"/{model_name}").method.responses if model_name else endpoint.method.responses
+        if response_model is not None:
+            responses = responses.model_copy(update={
+                "success": ReqRes(ref=response_model.__name__, model=response_model)
+            })
+        @self.pagination
+        @self.parse_as(responses)
         @self.cost
         @self.retry
         @self.cache
         async def call(client, **params):
-            validated = endpoint.method.request.model.model_validate(
-                {**params, "api_key": self.api_key}
-            )
+            request_model = endpoint.method.request.model
+            values = dict(params)
+            if "api_key" in request_model.model_fields:
+                values["api_key"] = self.api_key
+            validated = request_model.model_validate(values, extra="forbid")
             query = validated.model_dump(
                 mode="json",
                 by_alias=True,
@@ -373,9 +415,11 @@ class OpenAlexClient(GeneratedEndpoints):
             response = await self.endpoint_factory("/query")(oqo=query)    #query endpoint is not in the schema, defining manually
         return response
 
-    async def oqo(self, query: OQO):
+    async def oqo(self, query: OQO, **params):
+        if query.group_by or query.calculate:
+            return await self.endpoint_factory("/", response_model=CalculationResponse)(oqo=query, **params)
         model_name = query.get_rows.value
-        return await self.endpoint_factory("/", model_name)(oqo=query)    #root endpoint is not in the schema, defining manually
+        return await self.endpoint_factory("/", model_name)(oqo=query, **params)    #root endpoint is not in the schema, defining manually
 
     def reconstruct_and_wrap_abstract(inverted_index, max_width=80):
         if not inverted_index:

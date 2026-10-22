@@ -1,0 +1,83 @@
+{
+  "meta": {
+    "count": 125895,
+    "page": 1,
+    "groups_count": 2,
+    "more_groups": false,
+    "measures": [
+      {
+        "key": "count",
+        "oql": "count"
+      },
+      {
+        "key": "percent_of_those",
+        "oql": "percent of those works"
+      }
+    ],
+    "splits": [
+      {
+        "oql": "condition",
+        "kind": "conditions"
+      },
+      {
+        "oql": "type",
+        "kind": "column"
+      }
+    ],
+    "cost": {
+      "credits": 1,
+      "usd": 0.0001,
+      "steps": []
+    },
+    "x_query": {
+      "oql": "get works where year >= (2016) and country is (KE);\nthen group those works into ((institution is (I99464096)), (country is (BE)));\nthen group those works again by type;\nthen summarize using count, percent of those works"
+    }
+  },
+  "summary": {
+    "all": {
+      "key": "all",
+      "key_display_name": "all works",
+      "count": 125895
+    },
+    "splits": [
+      {
+        "groups": [
+          {
+            "key": "institution is (I99464096)",
+            "key_display_name": "institution is (I99464096)",
+            "count": 382,
+            "percent_of_those": 0.3034
+          }
+        ],
+        "more_groups": false
+      },
+      {
+        "groups": [
+          {
+            "key": "https://openalex.org/types/article",
+            "key_display_name": "article",
+            "count": 94975,
+            "percent_of_those": 75.4399
+          }
+        ],
+        "more_groups": false
+      }
+    ]
+  },
+  "group_by": [
+    {
+      "key": "institution is (I99464096)",
+      "key_display_name": "institution is (I99464096)",
+      "count": 382,
+      "percent_of_those": 0.3034,
+      "groups": [
+        {
+          "key": "https://openalex.org/types/article",
+          "key_display_name": "article",
+          "count": 295,
+          "percent_of_those": 77.2251
+        }
+      ]
+    }
+  ]
+}

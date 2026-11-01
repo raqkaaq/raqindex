@@ -17,6 +17,14 @@ endpoint metadata required by the client:
 uv run python scripts/generate_schema.py
 ```
 
+The script is a small entry point for the generator class (requires the dev dependencies):
+
+```python
+from raqindex.codegen import SchemaGenerator
+
+SchemaGenerator().run()
+```
+
 Use the client inside an async function or notebook:
 
 ```python

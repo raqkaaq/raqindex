@@ -1,5 +1,4 @@
 """Exercise code generation in temporary directories; no upstream requests."""
-import importlib.util
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -10,11 +9,9 @@ import pytest
 
 @pytest.fixture
 def generator():
-    path = Path(__file__).parents[2] / 'scripts' / 'generate_schema.py'
-    spec = importlib.util.spec_from_file_location('raqindex_codegen_under_test', path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    from raqindex.codegen import SchemaGenerator
+
+    return SchemaGenerator(env=SimpleNamespace())
 
 
 def test_supplement_reuses_constraints_resolves_refs_and_is_idempotent(generator):
@@ -29,7 +26,8 @@ def test_supplement_reuses_constraints_resolves_refs_and_is_idempotent(generator
     shared = schema['components']['schemas']['RetrievalParameters']['properties']
     assert set(shared) == {'per_page', 'sort'}
     assert shared['per_page'] == original['components']['parameters']['per_page']['schema']
-    assert schema['paths'] == original['paths']
+    original_parameters = original['paths']['/works']['get']['parameters']
+    assert schema['paths']['/works']['get']['parameters'][:len(original_parameters)] == original_parameters
     shared['per_page']['maximum'] = 50
     assert schema['components']['parameters']['per_page']['schema']['maximum'] == 100
     snapshot = deepcopy(schema)
@@ -78,8 +76,9 @@ async def test_generated_wrappers_route_list_and_id_without_exposing_auth(genera
         {'endpoint': '/works', 'method': {'request': {'model': 'WorksGetParameters'}}},
         {'endpoint': '/works/{id}', 'method': {'request': {'model': 'WorksIdGetParameters'}}},
     ]))
-    monkeypatch.setattr(generator, 'PROJECT_ROOT', tmp_path)
-    generator.generate_wrappers(SimpleNamespace(endpoints_file_path=endpoint_file))
+    monkeypatch.setattr(generator, 'project_root', tmp_path)
+    generator.env = SimpleNamespace(endpoints_file_path=endpoint_file)
+    generator.generate_wrappers()
     namespace = {}
     exec(compile((tmp_path / 'src/raqindex/client/generated_endpoints.py').read_text(), '<wrappers>', 'exec'), namespace)
     calls = []
@@ -103,9 +102,10 @@ async def test_generated_wrappers_route_list_and_id_without_exposing_auth(genera
 def test_wrapper_generation_rejects_invalid_python_names(generator, tmp_path, monkeypatch, path):
     endpoint_file = tmp_path / 'endpoints.json'
     endpoint_file.write_text(json.dumps([{'endpoint': path, 'method': {'request': {'model': 'WorksGetParameters'}}}]))
-    monkeypatch.setattr(generator, 'PROJECT_ROOT', tmp_path)
+    monkeypatch.setattr(generator, 'project_root', tmp_path)
     with pytest.raises(ValueError):
-        generator.generate_wrappers(SimpleNamespace(endpoints_file_path=endpoint_file))
+        generator.env = SimpleNamespace(endpoints_file_path=endpoint_file)
+        generator.generate_wrappers()
 
 
 def test_generate_models_saves_the_same_supplemented_schema_it_generates(generator, tmp_path, monkeypatch):
@@ -119,19 +119,25 @@ def test_generate_models_saves_the_same_supplemented_schema_it_generates(generat
                 'schema': {'$ref': '#/components/schemas/WorksListResponse'}}}}}}}},
         'components': {'schemas': {'WorksListResponse': {'type': 'object', 'properties': {
             'results': {'type': 'array', 'items': {'type': 'string'}}}}}}}
-    monkeypatch.setattr(generator.httpx2, 'get', lambda *args, **kwargs: httpx2.Response(
+    monkeypatch.setattr(httpx2, 'get', lambda *args, **kwargs: httpx2.Response(
         200, json=schema, request=httpx2.Request('GET', 'https://example.invalid/schema')))
-    monkeypatch.setattr(generator, 'MODELS_DIR', tmp_path / 'models')
+    monkeypatch.setattr(generator, 'models_dir', tmp_path / 'models')
     spec_path, map_path = tmp_path / 'cache/spec.json', tmp_path / 'cache/map.json'
     generator.generate_models('https://example.invalid/schema', 'models.py', InputFileType.OpenAPI,
                               spec_path, map_path)
     saved = json.loads(spec_path.read_text())
     assert saved['components']['schemas']['RetrievalParameters']['properties']['per_page']['maximum'] == 100
-    assert saved['paths'] == schema['paths']
+    assert saved['paths']['/works']['get']['responses'] == schema['paths']['/works']['get']['responses']
     output = tmp_path / 'models/models.py'
     namespace = {}
     exec(compile(output.read_text(), str(output), 'exec'), namespace)
     assert namespace['RetrievalParameters']().per_page == 25
+    works = namespace['WorksGetParameters']
+    request = works.model_validate({'search.semantic': 'climate'})
+    assert request.search_semantic == 'climate'
+    assert request.model_dump(by_alias=True, exclude_none=True)['search.semantic'] == 'climate'
+    assert works.model_fields['rerank'].annotation == bool | None
+    assert 'search_semantic' not in namespace['RetrievalParameters'].model_fields
     assert 'WorksListResponse' in namespace
     assert json.loads(map_path.read_text())['models']
 
@@ -142,7 +148,7 @@ def test_failed_schema_fetch_does_not_overwrite_existing_files(generator, tmp_pa
 
     saved = tmp_path / 'spec.json'
     saved.write_text('original')
-    monkeypatch.setattr(generator.httpx2, 'get', lambda *args, **kwargs: httpx2.Response(
+    monkeypatch.setattr(httpx2, 'get', lambda *args, **kwargs: httpx2.Response(
         503, request=httpx2.Request('GET', 'https://example.invalid/schema')))
     with pytest.raises(httpx2.HTTPStatusError):
         generator.generate_models('https://example.invalid/schema', 'models.py', InputFileType.OpenAPI,
@@ -173,7 +179,8 @@ def test_mapping_resolves_success_and_error_refs_into_reloadable_metadata(genera
                           endpoints_file_path=tmp_path / 'generated/endpoints.json')
     env.openalex_spec_file_path.write_text(json.dumps(schema))
     env.openalex_model_map_file_path.write_text(json.dumps(mapping))
-    generator.generate_mapping(env)
+    generator.env = env
+    generator.generate_mapping()
     metadata = json.loads(env.endpoints_file_path.read_text())
     assert len(metadata) == 1
     endpoint = Endpoint.model_validate(metadata[0])
@@ -181,3 +188,96 @@ def test_mapping_resolves_success_and_error_refs_into_reloadable_metadata(genera
     assert endpoint.method.request.model is WorksGetParameters
     assert endpoint.method.responses.success.model is WorksListResponse
     assert endpoint.method.responses.bad_request.model is Error
+
+    # Later stages use the metadata and model registry produced by this instance.
+    generator.project_root = tmp_path
+    def unexpected_read(path):
+        pytest.fail(f"Unexpected artifact reload: {path}")
+    monkeypatch.setattr(generator, '_read_json', unexpected_read)
+    generator.generate_wrappers()
+    namespace = {}
+    exec(compile(generator.wrappers_path.read_text(), '<wrappers>', 'exec'), namespace)
+    assert '/works -> WorksGetParameters' == namespace['GeneratedEndpoints'].works.endpoints
+
+
+def test_run_generates_models_before_mapping_and_wrappers(tmp_path, monkeypatch):
+    from unittest.mock import Mock, call
+    from datamodel_code_generator import InputFileType
+    from raqindex.codegen import SchemaGenerator
+
+    env = SimpleNamespace(
+        oqo_spec_file_path=tmp_path / 'oqo.json',
+        oqo_model_map_file_path=tmp_path / 'oqo-map.json',
+        openalex_spec_file_path=tmp_path / 'openalex.json',
+        openalex_model_map_file_path=tmp_path / 'openalex-map.json',
+    )
+    generator = SchemaGenerator(env, project_root=tmp_path)
+    steps = Mock()
+    for name in ('generate_models', 'generate_mapping', 'generate_wrappers'):
+        monkeypatch.setattr(generator, name, getattr(steps, name))
+    generator.run()
+    assert steps.mock_calls == [
+        call.generate_models('https://api.openalex.org/query/spec/oqo', 'oqo.py',
+                             InputFileType.JsonSchema, env.oqo_spec_file_path, env.oqo_model_map_file_path),
+        call.generate_models('https://help.openalex.org/openapi.json', 'openalex.py',
+                             InputFileType.OpenAPI, env.openalex_spec_file_path, env.openalex_model_map_file_path),
+        call.generate_mapping(),
+        call.generate_wrappers(),
+    ]
+    assert generator.models_dir == tmp_path / 'src/raqindex/models'
+
+
+def test_search_supplements_are_operation_specific_and_preserve_upstream(generator):
+    upstream = {'name': 'search.exact', 'in': 'query', 'schema': {
+        'type': 'string', 'maxLength': 123}, 'description': 'Upstream definition'}
+    schema = {'paths': {
+        '/works': {'parameters': [{'$ref': '#/components/parameters/exact'}], 'get': {
+            'parameters': [{'name': 'per_page', 'in': 'query', 'schema': {'type': 'integer'}}]},
+            'post': {'parameters': []}},
+        '/authors': {'get': {'parameters': [{'name': 'search', 'in': 'query', 'schema': {'type': 'string'}}]}}},
+        'components': {'parameters': {'exact': upstream}, 'schemas': {
+            'RetrievalParameters': {'type': 'object', 'properties': {}}}}}
+    original = deepcopy(schema)
+    generator.supplement_schema(schema)
+    parameters = schema['paths']['/works']['get']['parameters']
+    names = {parameter['name'] for parameter in parameters}
+    assert names == {'per_page', 'search.title', 'search.title.exact',
+        'search.title_and_abstract', 'search.title_and_abstract.exact',
+        'search.title_abstract_keywords', 'search.title_abstract_keywords.exact',
+        'search.semantic', 'rerank'}
+    assert schema['components'] == original['components']
+    author_parameters = schema['paths']['/authors']['get']['parameters']
+    assert author_parameters[0] == original['paths']['/authors']['get']['parameters'][0]
+    assert [parameter['name'] for parameter in author_parameters] == ['search', 'search.exact']
+    assert schema['paths']['/works']['post'] == original['paths']['/works']['post']
+    assert schema['paths']['/works']['parameters'] == original['paths']['/works']['parameters']
+    snapshot = deepcopy(schema)
+    generator.supplement_schema(schema)
+    assert schema == snapshot
+
+
+@pytest.mark.parametrize('entity', [
+    'authors', 'sources', 'institutions', 'topics', 'keywords', 'publishers',
+    'funders', 'domains', 'fields', 'subfields', 'sdgs', 'countries',
+    'continents', 'languages', 'awards', 'concepts', 'work-types',
+    'source-types', 'institution-types', 'licenses', 'indexes',
+])
+def test_exact_search_is_available_on_entity_lists_only(generator, entity):
+    search = {'name': 'search', 'in': 'query', 'schema': {'type': 'string'}}
+    schema = {'paths': {
+        '/works': {'get': {'parameters': [
+            {'name': 'per_page', 'in': 'query', 'schema': {'type': 'integer'}}]}},
+        f'/{entity}': {'get': {'parameters': [deepcopy(search)]}},
+        f'/{entity}/{{id}}': {'get': {'parameters': []}},
+        '/autocomplete/{entity}': {'get': {'parameters': [
+            {'name': 'q', 'in': 'query', 'schema': {'type': 'string'}}]}},
+        '/rate-limit': {'get': {'parameters': []}},
+    }}
+    untouched = deepcopy(schema['paths'])
+    generator.supplement_schema(schema)
+    parameters = schema['paths'][f'/{entity}']['get']['parameters']
+    assert [parameter['name'] for parameter in parameters] == ['search', 'search.exact']
+    assert parameters[1]['schema'] == {'type': 'string'}
+    assert parameters[1]['required'] is False
+    for path in (f'/{entity}/{{id}}', '/autocomplete/{entity}', '/rate-limit'):
+        assert schema['paths'][path] == untouched[path]

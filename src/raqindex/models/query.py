@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, model_validator
-from .oqo import Model as OQO
-from .openalex import RetrievalParameters
+from ..generated.oqo import Model as OQO
+from ..generated.openalex import RetrievalParameters
 
 
 class XQuery(BaseModel):

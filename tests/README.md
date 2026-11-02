@@ -33,8 +33,7 @@ Tests are not evidence that an undocumented API behavior is guaranteed.
   jitter ceiling, configured cap and attempt budget). Those exact values are
   not OpenAlex requirements. Retry-After and cancellation are separate checks.
 - Environment singleton/default/path tests describe the current project policy;
-  they are regression checks, not requirements imposed by OpenAlex. In particular,
-  treating `~` literally in schema filenames is not an API guarantee.
+  they are regression checks, not requirements imposed by OpenAlex. Paths use the shared parser: `~` expands and absolute paths are preserved.
 - Codegen tests check that generation preserves model contracts, existing schema
   definitions, and endpoint-specific differences. Temporary files only are used.
 - Calculation fixtures are upstream production examples, not a complete response

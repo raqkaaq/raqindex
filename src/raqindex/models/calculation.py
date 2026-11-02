@@ -7,11 +7,11 @@ Structure checked against production-derived fixtures in:
 https://github.com/ourresearch/openalex-mcp-server/blob/main/test/calculate.test.ts
 """
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
 
-from .openalex import Meta
+from ..generated.openalex import Meta
 from .query import Cost, XQuery
 
 
@@ -36,7 +36,9 @@ class SplitDescriptor(CalculationModel):
 
 
 class CalculationRow(CalculationModel):
-    __pydantic_extra__: dict[str, CalculationValue] = Field(init=False)
+    if not TYPE_CHECKING:
+        # Validate extras at runtime without narrowing the writable base attribute.
+        __pydantic_extra__: dict[str, CalculationValue] = Field(init=False)
 
     key: Any = None
     key_display_name: str | None = None

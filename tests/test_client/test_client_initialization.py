@@ -22,8 +22,10 @@ def test_client_http_configuration(client):
 
 @pytest.mark.asyncio
 async def test_client_cache_configuration(environment_variables, monkeypatch, tmp_path):
-    storage_factory = Mock(wraps=client_module.AsyncSqliteStorage)
-    monkeypatch.setattr(client_module, "AsyncSqliteStorage", storage_factory)
+    from raq_helpers.client import client as shared_client
+
+    storage_factory = Mock(wraps=shared_client.AsyncSqliteStorage)
+    monkeypatch.setattr(shared_client, "AsyncSqliteStorage", storage_factory)
 
     async with OpenAlexClient() as client:
         storage_factory.assert_called_once_with(
@@ -35,11 +37,11 @@ async def test_client_cache_configuration(environment_variables, monkeypatch, tm
 
 def test_client_preserves_environment_failure(monkeypatch):
     original_error = ValueError("Missing API key")
-    monkeypatch.setattr(
-        client_module, "Environment", Mock(side_effect=original_error)
-    )
+    monkeypatch.setattr(client_module, "Environment", Mock(side_effect=original_error))
 
-    with pytest.raises(ValueError, match=r"^Failed to initialize OpenAlexClient\.$") as error:
+    with pytest.raises(
+        ValueError, match=r"^Failed to initialize OpenAlexClient\.$"
+    ) as error:
         OpenAlexClient()
 
     assert error.value.__cause__ is original_error

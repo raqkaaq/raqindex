@@ -2,7 +2,7 @@ __all__ = ["OQO", "XQuery", "Endpoint"]
 
 def __getattr__(name):
     if name == "OQO":
-        from .oqo import Model
+        from ..generated.oqo import Model
         return Model
 
     if name == "XQuery":

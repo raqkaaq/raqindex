@@ -70,45 +70,10 @@ async def test_next_page_fetches_one_page_at_a_time_preserving_query(
     assert first.meta.next_cursor == "opaque+/=cursor"
 
 
-@pytest.mark.asyncio
-async def test_existing_non_cursor_requests_are_not_changed(client, monkeypatch):
-    request = AsyncMock(return_value=response("server-cursor"))
-    monkeypatch.setattr(client.client, "request", request)
-    result = await client.works(page=2)
-    assert "cursor" not in request.call_args.kwargs["params"]
-    assert await client.next_page(result) is None
-    assert request.await_count == 1
 
 
-@pytest.mark.asyncio
-async def test_can_resume_from_saved_cursor(client, monkeypatch):
-    request = AsyncMock(side_effect=[response("next"), response(None)])
-    monkeypatch.setattr(client.client, "request", request)
-    page = await client.works(cursor="saved-checkpoint")
-    assert request.call_args.kwargs["params"]["cursor"] == "saved-checkpoint"
-    await client.next_page(page)
-    assert request.call_args.kwargs["params"]["cursor"] == "next"
 
 
-@pytest.mark.asyncio
-async def test_separate_result_sets_do_not_overwrite_continuations(client, monkeypatch):
-    request = AsyncMock(
-        side_effect=[
-            response("climate-2"),
-            response("biology-2"),
-            response(None),
-            response(None),
-        ]
-    )
-    monkeypatch.setattr(client.client, "request", request)
-    climate = await client.works(cursor="*", search="climate")
-    biology = await client.works(cursor="*", search="biology")
-    await client.next_page(climate)
-    assert request.call_args.kwargs["params"]["search"] == "climate"
-    assert request.call_args.kwargs["params"]["cursor"] == "climate-2"
-    await client.next_page(biology)
-    assert request.call_args.kwargs["params"]["search"] == "biology"
-    assert request.call_args.kwargs["params"]["cursor"] == "biology-2"
 
 
 @pytest.mark.asyncio

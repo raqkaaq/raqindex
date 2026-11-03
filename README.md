@@ -14,10 +14,10 @@ Set your OpenAlex API key and email in `.env`, then generate the schemas and
 endpoint metadata required by the client:
 
 ```bash
-uv run python scripts/generate_schema.py
+uv run python -m raqindex.codegen
 ```
 
-The script is a small entry point for the generator class (requires the dev dependencies):
+The module runs the generator class (requires the dev dependencies):
 
 ```python
 from raqindex.codegen import SchemaGenerator
@@ -37,6 +37,10 @@ async with OpenAlexClient() as client:
 ```
 
 `client.query(oqo)` validates and translates an OQO without executing it;
-`client.oqo(oqo)` executes it. Calculation response parsing is still incomplete.
+`client.oqo(oqo)` executes it; `client.oql(text)` translates and executes OQL.
+Calculation responses are modeled; automatic continuation is limited to entity pages.
+
+See the [OQL cheatsheet (PDF)](docs/oql.pdf) for search syntax, conditions, semantic
+search, entity references, and how to validate a sentence.
 
 Run tests with `uv run pytest tests`.

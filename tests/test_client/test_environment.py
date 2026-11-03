@@ -36,10 +36,6 @@ def test_env_get_url():
     assert env.get_url() == "https://test.api.url"
 
 
-def test_env_singleton_behavior():
-    env1 = Environment()
-    env2 = Environment()
-    assert env1 is env2
 
 
 def test_env_singleton_with_different_keys():
@@ -57,11 +53,6 @@ def test_env_invalid_api_key_type():
         env.set_api_key(12345)  # Non-string API key should raise TypeError
 
 
-def test_env_valid_cache_ttl_parsing():
-    env = Environment()
-    assert isinstance(env.cache_ttl, int) and env.cache_ttl > 0, (
-        "Cache TTL should be a positive integer representing seconds"
-    )
 
 
 @pytest.fixture(autouse=True)
@@ -73,12 +64,6 @@ def isolated_environment(environment_variables, monkeypatch):
     monkeypatch.setattr("dotenv.dotenv_values", lambda **kwargs: {})
 
 
-@pytest.mark.parametrize(
-    "duration,seconds", [("1d", 86400), ("2h", 7200), ("30m", 1800)]
-)
-def test_cache_ttl_parsing(monkeypatch, duration, seconds):
-    monkeypatch.setenv("OPENALEX_CACHE_TTL", duration)
-    assert Environment().cache_ttl == seconds
 
 
 def test_environment_defaults(monkeypatch):
@@ -96,6 +81,19 @@ def test_environment_defaults(monkeypatch):
     assert env.cache_db_path == env.cache_path / "openalex_cache.db"
     assert env.oqo_spec_file_path == env.cache_path / "schemas" / "oqo_spec.json"
     assert env.cache_ttl == 86400
+    assert env.cache_redis_url is None
+    assert env.cache_key_prefix == "raqindex"
+    assert env.cache_max_response_bytes == 10485760
+
+
+def test_redis_environment(monkeypatch):
+    monkeypatch.setenv("REDIS_URL", "redis://127.0.0.1:6379/0")
+    monkeypatch.setenv("OPENALEX_CACHE_KEY_PREFIX", "custom")
+    monkeypatch.setenv("OPENALEX_CACHE_MAX_RESPONSE_BYTES", "67108864")
+    env = Environment()
+    assert env.cache_redis_url == "redis://127.0.0.1:6379/0"
+    assert env.cache_key_prefix == "custom"
+    assert env.cache_max_response_bytes == 67108864
 
 
 def test_missing_api_key(monkeypatch):

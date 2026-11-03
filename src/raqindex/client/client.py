@@ -91,6 +91,9 @@ class OpenAlexClient(Client, GeneratedEndpoints):
             url=self.env.url,
             cache_db_path=self.env.cache_db_path,
             cache_ttl=self.env.cache_ttl,
+            cache_redis_url=self.env.cache_redis_url,
+            cache_key_prefix=self.env.cache_key_prefix,
+            cache_max_response_bytes=self.env.cache_max_response_bytes,
             headers={
                 "Authorization": f"Bearer {self.api_key}",
                 "User-Agent": "OpenAlexClient/1.0",
@@ -230,6 +233,13 @@ class OpenAlexClient(Client, GeneratedEndpoints):
         else:
             response = await self.endpoint_factory("/query", method="POST")(oqo=query)
         return response
+
+    async def oql(self, query: str, **params):
+        """Translate OQL and execute its OQO, preserving translation errors."""
+        translated = await self.query(query)
+        if not isinstance(translated, QueryResponse) or not translated.validation.valid or translated.oqo is None:
+            return translated
+        return await self.oqo(translated.oqo, **params)
 
     async def oqo(self, query: OQO, **params):
         if query.group_by or query.calculate:

@@ -15,6 +15,9 @@ class OpenAlexEnvironment(BaseEnvironment):
     cache_path: Path
     cache_db_path: Path
     cache_ttl: int
+    cache_redis_url: str | None
+    cache_key_prefix: str
+    cache_max_response_bytes: int
     schema_path: Path
     oqo_spec_file_path: Path
     openalex_spec_file_path: Path
@@ -23,6 +26,13 @@ class OpenAlexEnvironment(BaseEnvironment):
     endpoints_file_path: Path
 
     variables = {
+        "cache_redis_url": EnvironmentVariable("REDIS_URL"),
+        "cache_key_prefix": EnvironmentVariable(
+            "OPENALEX_CACHE_KEY_PREFIX", default="raqindex",
+        ),
+        "cache_max_response_bytes": EnvironmentVariable(
+            "OPENALEX_CACHE_MAX_RESPONSE_BYTES", default="10485760", parse=int,
+        ),
         "api_key": EnvironmentVariable(env_name="OPENALEX_API_KEY", required=True),
         "email": EnvironmentVariable(env_name="EMAIL", required=True),
         "url": EnvironmentVariable(

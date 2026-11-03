@@ -181,32 +181,6 @@ async def test_generated_wrappers_route_list_and_id_without_exposing_auth(
     assert "mailto" not in client.works.parameters
 
 
-@pytest.mark.parametrize("path", ["/invalid/{self}", "/invalid/{bad-name}", "/{value}"])
-def test_wrapper_generation_rejects_invalid_python_names(
-    generator, tmp_path, monkeypatch, path
-):
-    endpoint_file = tmp_path / "endpoints.json"
-    endpoint_file.write_text(
-        json.dumps(
-            [
-                {
-                    "endpoint": path,
-                    "method": {
-                        "method": "GET",
-                        "request": {
-                            "ref": "WorksGetParameters",
-                            "model": "WorksGetParameters",
-                        },
-                        "responses": {},
-                    },
-                }
-            ]
-        )
-    )
-    monkeypatch.setattr(generator, "project_root", tmp_path)
-    with pytest.raises(ValueError):
-        generator.env = SimpleNamespace(endpoints_file_path=endpoint_file)
-        generator.generate_wrappers()
 
 
 def test_generate_models_saves_the_same_supplemented_schema_it_generates(

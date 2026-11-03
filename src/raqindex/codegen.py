@@ -210,6 +210,7 @@ class OpenAlexEndpointGenerator(EndpointGenerator):
         "usage",
         "query",
         "oqo",
+        "oql",
         "cost",
         "reconstruct_and_wrap_abstract",
     }

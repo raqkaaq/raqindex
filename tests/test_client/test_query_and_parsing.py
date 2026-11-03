@@ -154,9 +154,6 @@ async def test_path_values_are_encoded_and_removed_from_query_parameters(
     assert sent["params"] == {"select": "id"}
 
 
-def test_unknown_endpoint_fails_before_request(client):
-    with pytest.raises(ValueError, match="not found"):
-        client.endpoint_factory("/not-an-endpoint")
 
 
 @pytest.mark.asyncio
@@ -248,3 +245,32 @@ async def test_redacting_response_metadata_does_not_change_client_credentials(
     assert result.model_extra["request"].api_key == "<redacted>"
     assert client.api_key == "test_api_key"
     assert client.client.headers["Authorization"] == "Bearer test_api_key"
+
+
+@pytest.mark.asyncio
+async def test_oql_translates_then_executes_with_view_parameters(client, monkeypatch):
+    request = AsyncMock(side_effect=[
+        mock_response({'oql': 'get works', 'oqo': {'get_rows': 'works'},
+                       'validation': {'valid': True, 'errors': [], 'warnings': []}}),
+        mock_response({'meta': {'count': 0}, 'results': []}),
+    ])
+    monkeypatch.setattr(client.client, 'request', request)
+    result = await client.oql('get works', per_page=5, cursor='*')
+    assert result.results == []
+    assert request.await_args_list[0].kwargs['url'] == '/query'
+    sent = request.await_args_list[1].kwargs
+    assert sent['url'] == '/'
+    assert sent['json']['oqo']['get_rows'] == 'works'
+    assert sent['json']['per_page'] == 5
+    assert sent['json']['cursor'] == '*'
+
+
+@pytest.mark.asyncio
+async def test_oql_returns_translation_error_without_execution(client, monkeypatch):
+    request = AsyncMock(return_value=mock_response({'validation': {
+        'valid': False, 'errors': ['Invalid query'], 'warnings': []}}, status=400))
+    monkeypatch.setattr(client.client, 'request', request)
+    result = await client.oql('invalid query')
+    assert isinstance(result, QueryErrorResponse)
+    assert result.validation.errors == ['Invalid query']
+    request.assert_awaited_once()

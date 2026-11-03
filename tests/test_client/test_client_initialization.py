@@ -48,38 +48,31 @@ def test_client_preserves_environment_failure(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_client_context_manager(environment_variables):
-    client = OpenAlexClient()
-    async with client as entered:
-        assert entered is client
-        assert not client.client.is_closed
+async def test_client_redis_configuration(environment_variables, monkeypatch, tmp_path):
+    from raq_helpers.client import client as shared_client
 
-    assert client.client.is_closed
+    monkeypatch.setenv("REDIS_URL", "redis://127.0.0.1:6379/0")
+    monkeypatch.setenv("OPENALEX_CACHE_KEY_PREFIX", "test-raqindex")
+    monkeypatch.setenv("OPENALEX_CACHE_MAX_RESPONSE_BYTES", "67108864")
+    storage_factory = Mock(wraps=shared_client.AsyncRedisStorage)
+    sqlite_factory = Mock(side_effect=AssertionError("SQLite must not be opened"))
+    monkeypatch.setattr(shared_client, "AsyncRedisStorage", storage_factory)
+    monkeypatch.setattr(shared_client, "AsyncSqliteStorage", sqlite_factory)
+
+    async with OpenAlexClient():
+        kwargs = storage_factory.call_args.kwargs
+        assert storage_factory.call_count == 1
+        assert kwargs["ttl"] == 86400
+        assert kwargs["key_prefix"] == "test-raqindex"
+        assert kwargs["max_stream_size"] == 67108864
+        sqlite_factory.assert_not_called()
+        assert not (tmp_path / "openalex_cache.db").exists()
 
 
-@pytest.mark.asyncio
-async def test_client_closes_when_context_raises(environment_variables):
-    client = OpenAlexClient()
-    original_error = RuntimeError("test failure")
-
-    with pytest.raises(RuntimeError, match="test failure") as error:
-        async with client:
-            raise original_error
-
-    assert error.value is original_error
-    assert client.client.is_closed
 
 
-@pytest.mark.asyncio
-async def test_client_explicit_close(environment_variables):
-    client = OpenAlexClient()
-    try:
-        assert not client.client.is_closed
-        await client.aclose()
-        assert client.client.is_closed
-    finally:
-        if not client.client.is_closed:
-            await client.aclose()
+
+
 
 
 @pytest.mark.asyncio

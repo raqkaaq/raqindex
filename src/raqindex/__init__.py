@@ -12,6 +12,7 @@ import logging.config
 
 LOGGING_CONFIG = {
     "version": 1,
+    "disable_existing_loggers": False,
     "handlers": {
         "default": {
             "class": "logging.StreamHandler",

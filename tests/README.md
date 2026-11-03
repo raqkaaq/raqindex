@@ -44,3 +44,14 @@ Tests are not evidence that an undocumented API behavior is guaranteed.
 
 No live API calls are made. Mock responses test client behavior against the
 specified example; they cannot verify that an upstream service honors its docs.
+
+## Shared helper coverage
+
+Generic filters, retry/backoff/deadlines, environment parsing, HTTP lifecycle,
+SQLite cache behavior, parsing/pagination mechanics, endpoint models/factory, and
+shared code generation are tested in `../raq_helpers/tests`. Their migrated cases
+were removed here. This suite retains OpenAlex configuration and overrides: credit
+budgets, auth/redaction, OQL/OQO JSON requests, response models, calculations, schema
+supplements, generated API routes, and adapter integration.
+
+Run helper tests separately with `uv run --project ../raq_helpers python -m pytest`.

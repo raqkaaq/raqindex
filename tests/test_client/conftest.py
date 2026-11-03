@@ -21,6 +21,9 @@ def environment_variables(monkeypatch, tmp_path):
     monkeypatch.setenv("EMAIL", "tests@example.invalid")
     monkeypatch.setenv("OPENALEX_SCHEMA_PATH", "schemas")
     for name in (
+        "REDIS_URL",
+        "OPENALEX_CACHE_KEY_PREFIX",
+        "OPENALEX_CACHE_MAX_RESPONSE_BYTES",
         "OPENALEX_OPENALEX_SPEC_FILE_PATH",
         "OPENALEX_OPENALEX_MODEL_MAP_FILE_PATH",
         "OPENALEX_OQO_MODEL_MAP_FILE_PATH",

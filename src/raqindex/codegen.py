@@ -201,6 +201,23 @@ class OpenAlexModelGenerator(ModelGenerator):
 
     def postprocess_models(self, output):
         self.share_retrieval_parameters(output)
+        source = output.read_text(encoding="utf-8")
+        target = "class Work(BaseModel):"
+        if target not in source:
+            return
+        if source.count(target) != 1:
+            raise ValueError("Expected exactly one generated Work class.")
+        property_source = '''
+    @property
+    def abstract(self) -> str | None:
+        """Reconstruct plain text from the abstract inverted index."""
+        from raqindex.models.abstract import reconstruct_abstract
+
+        return reconstruct_abstract(self.abstract_inverted_index)
+'''
+        output.write_text(
+            source.replace(target, target + property_source, 1), encoding="utf-8"
+        )
 
 
 class OpenAlexEndpointGenerator(EndpointGenerator):

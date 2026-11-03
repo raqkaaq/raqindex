@@ -16,6 +16,7 @@ from raq_helpers.models import (
 from .environment import Environment
 from .endpoint_factory import OpenAlexEndpointFactory
 from ..generated.endpoints import GeneratedEndpoints
+from ..models.abstract import reconstruct_abstract
 from ..models.calculation import CalculationResponse
 from ..generated.openalex_registry import MODEL_REGISTRY
 from ..generated.openalex import Error
@@ -253,22 +254,4 @@ class OpenAlexClient(Client, GeneratedEndpoints):
 
     @staticmethod
     def reconstruct_and_wrap_abstract(inverted_index, max_width=80):
-        if not inverted_index:
-            return ""
-
-        # 1. Find the total length of the abstract
-        total_words = (
-            max(pos for positions in inverted_index.values() for pos in positions) + 1
-        )
-        word_list = [""] * total_words
-
-        # 2. Place each word in its correct position
-        for word, positions in inverted_index.items():
-            for pos in positions:
-                word_list[pos] = word
-
-        # 3. Join words into a single string
-        full_text = " ".join(word_list)
-
-        # 4. Wrap the text to the specified width
-        return textwrap.fill(full_text, width=max_width)
+        return textwrap.fill(reconstruct_abstract(inverted_index) or "", width=max_width)
